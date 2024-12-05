@@ -1,0 +1,16 @@
+---
+title: "MT SP 24"
+author: "Sheyanne Rodriguez"
+date: "2024-09-27"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ![](images/clipboard-4003735766.png)
+
+![![](images/clipboard-1128384776.png)](images/clipboard-3489770392.png)
+
+![](images/clipboard-1154975655.png)

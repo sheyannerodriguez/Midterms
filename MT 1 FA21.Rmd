@@ -1,0 +1,424 @@
+---
+title: "MT 1 F2021"
+author: "Sheyanne Rodriguez"
+date: "2024-09-23"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Midterm 1: Chess Ratings
+
+### Elo Ratings
+
+Hint: Take note of how the data is **split** into sections by **blank lines** ('\\n\\n'); This fact might be useful later on!
+
+*demo cell here*
+
+The sections in the raw data alternate between **metadata** and **moves data**. The metadata is information about the game, such as who is playing with what pieces, the ratings of each player, and the results of the game. The moves data contains a record of each chess move executed in the game. Since players' Elo ratings are only affected by the outcomes of the games, we are primarily concerned with the metadata.
+
+### Exercise 0
+
+The first thing we need to do in our analysis is get the data in a more structured form.
+
+Fill out the function *extract_games(raw_data)* in the code cell below with the following requirements:
+
+Given a string read from a text file raw_data, extract the following about each game and store in a list of dictionaries *games.* Below are details for what one of these dictionaries should look like:
+
+-   game[i]['white_player'] - String - Name of the player assigned the white pieces.
+
+    -   Example from *raw_data : [White "Deac,Bogdan-Daniel"]*
+
+    -   Example value: 'Deac,Bogdan-Daniel'
+
+    -   Value type: str
+
+A demo of your function run on the `demo_raw_data` defined above is included in the solution cell. The result should be:
+
+```         
+[{  'white_player': 'Deac,Bogdan-Daniel',     'black_player': 'Giri,A',     'result': '1/2-1/2',     'white_rating': 2627,     'black_rating': 2780},   { 'white_player': 'Lupulescu,C',      'black_player': 'Aronian,L',      'result': '1/2-1/2',      'white_rating': 2656,      'black_rating': 2781}]
+```
+
+To help you get started, consider the following snippet, which converts `demo_raw_data` into a nested list of lists. A similar strategy may be helpful in processing the `raw_data` parameter in the exercise.
+
+```{python}
+def extract_games(raw_data):
+    import re
+    ### BEGIN SOLUTION
+    games = []
+    to_int_dict = {'WhiteElo': 'white_rating', 'BlackElo': 'black_rating'}
+    to_str_dict = {'Result': 'result', 'White': 'white_player', 'Black': 'black_player'}
+    for metadata in raw_data.split('\n\n')[::2]:
+        game = {}
+        for line in metadata.splitlines():
+            line_split = re.sub(r'[\[\]"]', '', line).split()
+            k, v = line_split[0], line_split[1]
+            if k in to_int_dict:
+                game[to_int_dict[k]] = int(v)
+            elif k in to_str_dict:
+                game[to_str_dict[k]] = v
+        games.append(game)
+    return games 
+    ### END SOLUTION    
+
+# Demo
+extract_games(demo_raw_data)
+```
+
+End of Exercise
+
+### Exercise 1
+
+The next bit of information we will need in our analysis is the outcome of each player's games paired with their opponent.
+
+Fill out the function `extract_player_results(games)` in the code cell below with the following requirements:
+
+Given `games`, a list of dictionaries containing the metadata for each game, create dictionary `player_results` mapping each player's name to a list of the outcomes of that player's games. Each outcome should include the opponent's name (String) and the number of points that the player received (Float) as the outcome of the game as a Tuple.
+
+The order of tuples in the list associated with each player should be the **same as the order of the matchups in `games`**.
+
+You should interpret the value associated with `'result'` as `"<white player points>-<black player points>"` separated by a dash "-". There are three possible outcomes of a game of chess: White wins (`'1-0'`), black wins (`'0-1'`), or draw (`'1/2-1/2'`).
+
+For example, if the input is:
+
+`[{'white_player': 'Dwight Schrute', 'black_player: 'Jim Halpert', 'result': '1-0'}, {'white_player': 'Stanley Hudson', 'black_player': 'Dwight Schrute', 'result': '1/2-1/2'}]`
+
+Then the output should be:
+
+`{'Dwight Schrute': [('Jim Halpert', 1.0), ('Stanley Hudson', 0.5)], 'Jim Halpert': [('Dwight Schrute', 0.0)], 'Stanley Hudson': [('Dwight Schrute', 0.5)]}`
+
+You can assume that each dictionary in `games` will have the keys `'white_player'`, `'black_player'`, and `'result'` and that the values associated with each of those keys are Strings. There may be duplicated matchups where the same two players are paired in the tournament more than once. These cases should be handled the same as any other game and do not require any special treatment.
+
+```{python}
+demo_games_metadata = [{'white_player': 'Dwight Schrute', 'black_player':
+  'Jim Halpert', 'result': '1-0'}, {'white_player': 'Stanley Hudson', 'black_player': 'Dwight Schrute', 'result': '1/2-1/2'}]
+```
+
+```{python}
+def extract_player_results(games):
+    ### BEGIN SOLUTION
+    results = {}
+    for game in games:
+        if game['white_player'] not in results.keys():
+            results[game['white_player']] = []
+        if game['black_player'] not in results.keys():
+            results[game['black_player']] = []
+        resultSplit = game['result'].split("-")
+        if resultSplit[0] == "1/2":
+            whiteResult = .5
+            blackResult = .5
+        else:
+            whiteResult = float(resultSplit[0])
+            blackResult = float(resultSplit[1])
+        results[game['white_player']].append((game['black_player'], whiteResult))
+        results[game['black_player']].append((game['white_player'], blackResult))
+    return results
+    ### END SOLUTION
+
+# Demo
+extract_player_results(demo_games_metadata)
+```
+
+### Exercise 2
+
+Our next task is to complete the total tournament score for each player.
+
+Fill in the function *calculate_score(player_results)* satisfying the following requirements:
+
+Given a dict *player_results* mapping player names to their tournament results (similar to the output of Exercise 1), create a **new** dict *player_scores* that maps each player (String) to their total score for the tournament (Float).
+
+For example, given the following input:
+
+`{'Angela Martin': [('Oscar Martinez', 1.0), ('Kevin Malone', 0.5), ('Andy Bernard', 0.0)], 'Michael Scott': [('Pam Halpert', 0.0), ('Toby Flenderson', 0.0), ('Todd Packer', 0.0)]}`
+
+Your function should output:
+
+`{'Angela Martin': 1.5, 'Michael Scott': 0.0}`
+
+```{python}
+demo_player_results = {'Angela Martin': [('Oscar Martinez', 1.0), ('Kevin Malone', 0.5), ('Andy Bernard', 0.0)], 'Michael Scott': [('Pam Halpert', 0.0), ('Toby Flenderson', 0.0), ('Todd Packer', 0.0)]}
+```
+
+```{python}
+def calculate_score(player_results):
+  ###Begin Solution
+ # output = {}
+  #for person in player_results:
+   # opponents = player_results[person]
+    #total = 0
+    #for opponent in opponents:
+     # total += opponent[1]
+    #output[person] = total
+    
+ # return output
+ return {player: sum(pts for _, pts in results) for player, results in player_results.items()} #EASY WAY TO DO IT
+calculate_score(demo_player_results)
+```
+
+### Exercise 3
+
+Our next task is to extract the Elo rating of each player from the metadata.
+
+Fill in the function `extract_ratings(games)` to satisfy the following requirements:
+
+Given a list of dictionaries, `games`, create a dictionary `player_ratings` that maps each player to their Elo rating before the tournament. You can assume that each dictionary in `games` will have the following keys and value types: `'white_player'`: (String), `'black_player'`: (String), `'white_rating'`: (Integer), and `'black_rating'`: (Integer).
+
+Additionally, if the same player has different ratings in the input, your function should raise a `ValueError`.
+
+For example:
+
+Input : `[{'white_player': 'Jim Halpert', 'black_player': 'Darryl Philbin', 'white_rating': 1600, 'black_rating': 1800}, {'white_player': 'Darryl Philbin', 'black_player': 'Phyllis Vance', 'white_rating': 1800, 'black_rating': 1700}]`
+
+Output : `{'Darryl Philbin': 1800, 'Jim Halpert': 1600, 'Phyllis Vance': 1700}`
+
+Input : `[{'white_player': 'Jim Halpert', 'black_player': 'Darryl Philbin', 'white_rating': 1600, 'black_rating': 1800}, {'white_player': 'Darryl Philbin', 'black_player': 'Phyllis Vance', 'white_rating': 1850, 'black_rating': 1700}]`
+
+Here `'Darryl Philbin'` has two ratings: 1800 in his first game and 1850 in his second. Your function should raise a `ValueError`!
+
+```{python}
+demo_metdata_good = [{'white_player': 'Jim Halpert', 'black_player': 'Darryl Philbin', 'white_rating': 1600, 'black_rating': 1800}, {'white_player': 'Darryl Philbin', 'black_player': 'Phyllis Vance', 'white_rating': 1800, 'black_rating': 1700}]
+demo_metdata_bad = [{'white_player': 'Jim Halpert', 'black_player': 'Darryl Philbin', 'white_rating': 1600, 'black_rating': 1850}, {'white_player': 'Darryl Philbin', 'black_player': 'Phyllis Vance', 'white_rating': 1800, 'black_rating': 1700}]
+```
+
+```{python}
+def extract_ratings(games):
+  from collections import defaultdict
+  rating_sets = defaultdict(set)
+  for game in games:
+    w, b = game['white_player'], game['black_player']
+    w_rating, b_rating = game['white_rating'], game['black_rating']
+    rating_sets[w].add(w_rating)
+    rating_sets[b].add(b_rating)
+  ratings = {}
+  for player, rs in rating_sets.items():
+    if len(rs) != 1:
+      raise ValueError
+    ratings[player] = list(rs)[0]
+  return ratings
+    
+try:
+  extract_ratings(demo_metdata_bad)
+  print('This should raise a ValueError')
+except ValueError:
+  print('Correctly raised ValueError')
+extract_ratings(demo_metdata_good)
+```
+
+### Exercise 4
+
+The last task before we begin analysis is to implement some functionality to **calculate the expected result** of a match based on the Elo **ratings of each player**.
+
+Fill out the function `expected_match_score(r_player, r_opponent)` to satisfy the following requirements:
+
+Given a player's **rating** *(Integer)* and their **opponent's rating** *(Integer)*, **compute the player's** **expected score in a game against that opponent**. The [**formula for the expected score is:**]{.underline}
+
+![](images/clipboard-925859221.png)
+
+**Output the expected score as a Float.** **Do not round**.
+
+For example:
+
+`expected_match_score(1900, 1500)` should return about `0.909`\
+`expected_match_score(1500, 1500)` should return about `0.5`\
+`expected_match_score(1900, 1700)` should return about `0.76`
+
+```{python}
+demo_ratings = [(1900, 1500), (1500, 1500), (1900, 1700)]
+```
+
+```{python}
+def expected_match_score(r_player, r_opponent):
+    ###
+    ### YOUR CODE HERE
+    ###
+    d = (r_opponent - r_player) / 400 #opponent rating - player rating
+    return 1 / (1 + 10 ** d)
+
+# Demo
+for rp, ro in demo_ratings:
+    print(f'expected_match_score({rp}, {ro}) = {expected_match_score(rp, ro)}')
+```
+
+## 1.7 Aside - Functional Programming
+
+It is often useful to write functions which take other functions as arguments. Inside of your function, the functional argument is called in a consistent way. This allows the caller of your function to customize it's behavior.
+
+Here is an over-engineered arithmetic calculator as an example. These functions define mathematical operations.
+
+```{python}
+# add
+def a(a, b):
+    return a+b
+# subtract
+def s(a, b):
+    return a-b
+# multiply
+def m(a, b):
+    return a*b
+# divide
+def d(a,b):
+    return a/b
+```
+
+This function, *calc* takes the two numbers as an argument and a third argument which determines how they are combined.
+
+```{python}
+def calc(a, b, opp):
+  return opp(a, b)
+```
+
+Now we can use any function that takes two arguments, like the 4 defined above to determine the behavior of *calc.*
+
+```{python}
+calc(3, 5, a)
+
+calc(3, 5, d)
+```
+
+## Exercise 5
+
+Our next task is to write some functionality to determine each player's expected tournament score.
+
+Fill in the function `expected_tournament_score(player_results, player_ratings, es_func)` to satisfy the following requirements:
+
+Given a dictionary, `player_results`, mapping players to their tournament results as a list of tuples (similar to the output from Exercise 1) and a dictionary, `player_ratings`, mapping players to their Elo ratings, compute the **total** expected score for each player (you only need to compute total expected score for players that are keys in `player_results`). The total expected score is simply the sum of the expected scores for each of that players games. Output the results as a dictionary mapping players (String) to their expected tournament score (Float).
+
+The third argument `es_func` is a function that takes two arguments (the player's rating and opponent's rating respectively) and returns an "expected score". You should use it to compute the expected scores for this exercise. **It might not be the same as the solution to Exercise 4!**
+
+A call to `es_func(1450, 1575)` inside of your function would compute the "expected score" for the 1450-rated player against a 1575-rated player.
+
+For example given:
+
+`player_results = {'Angela Martin': [('Dwight Schrute', 1.0), ('Stanley Hudson', 0.5)], 'Dwight Schrute': [('Angela Martin', 0.0), ('Jim Halpert', 0.5)]}`
+
+`player_ratings = {'Angela Martin': 1600, 'Dwight Schrute': 1750, 'Stanley Hudson': 1800, 'Jim Halpert': 1700}`
+
+`es_func = lambda r_player, r_opponent: float(r_player - r_opponent)`
+
+The output would be:
+
+`{'Angela Martin': -350.0, 'Dwight Schrute': 200.0}`
+
+```{python}
+demo_player_results = {'Angela Martin': [('Dwight Schrute', 1.0), ('Stanley Hudson', 0.5)], 'Dwight Schrute': [('Angela Martin', 0.0), ('Jim Halpert', 0.5)]}
+demo_player_ratings = {'Angela Martin': 1600, 'Dwight Schrute': 1750, 'Stanley Hudson': 1800, 'Jim Halpert': 1700}
+demo_es_func = lambda r_player, r_opponent: float(r_player - r_opponent)
+```
+
+```{python}
+def expected_tournament_score(player_results, player_ratings, es_func):
+  expected = {} #dictionary
+  #iterating over the player results
+  for player, results in player_results.items():
+    total = 0.0 #total expected points for each player initialed at 0
+    for opponent, pts in results:
+      total += es_func(player_ratings[player], player_ratings[opponent])
+    expected[player] = total
+  return expected
+  
+  
+expected_tournament_score(demo_player_results, demo_player_ratings, demo_es_func)  
+```
+
+### Exercise 6
+
+Fill in the function `compute_final_ratings(player_scores, expected_player_scores, player_ratings)` to meet the following requirements:
+
+Given **three dictionaries:**
+
+-   `player_scores`: mapping players (String) to their observed tournament scores (Float)
+
+-   `expected_player_scores`: mapping players (String) to their expected tournament scores (Float)
+
+-   `player_ratings`: mapping players (String) to their pre-tournament Elo ratings (Float)
+
+**calculate each player's post-tournament Elo ratings using this formula:**
+
+![](images/clipboard-1404305903.png)
+
+**Return a dictionary** mapping each player (String) to their post-tournament rating **rounded to the nearest integer**.
+
+You can assume that all keys are common between the three input dictionaries.
+
+For example:
+
+`player_scores = {'Jim Halpert': 3.0, 'Dwight Schrute': 4.0, 'Stanley Hudson': 3.0}`
+
+`expected_player_scores = {'Jim Halpert': 2.736, 'Dwight Schrute': 4.67, 'Stanley Hudson': 2.85}`
+
+`player_ratings = {'Jim Halpert': 1500, 'Dwight Schrute': 1575, 'Stanley Hudson': 1452}`
+
+Results: `{'Jim Halpert': 1503, 'Dwight Schrute': 1568, 'Stanley Hudson': 1454}`
+
+```{python}
+demo_player_scores = {'Jim Halpert': 3.0, 'Dwight Schrute': 4.0,
+'Stanley Hudson': 3.0}
+demo_expected_player_scores = {'Jim Halpert': 2.736, 'Dwight Schrute': 4.67, 'Stanley Hudson': 2.85}
+demo_player_ratings = {'Jim Halpert': 1500, 'Dwight Schrute': 1575,
+'Stanley Hudson': 1452}
+```
+
+```{python}
+def compute_final_ratings(player_scores, expected_player_scores, player_ratings):
+  final = {} #dictionary
+  for player in player_scores:
+    rating_new = player_ratings[player] + 10 * (player_scores[player] - expected_player_scores[player])
+    final[player] = round(rating_new)
+  return final
+    
+
+
+compute_final_ratings(demo_player_scores, demo_expected_player_scores, demo_player_ratings)  
+```
+
+### Exercise 7
+
+The last task we have is to compute the change in rating. This isn't just an intermediate step in Exercise 6, because we have to handle some special cases as well.
+
+Fill in the function `compute_deltas(old_ratings, new_ratings)` to meet the following requirements:
+
+Given dictionaries `old_ratings` mapping players (String) to their pre-tournament Elo ratings (Integer) and `new_ratings` mapping players (String) to their post-tournament Elo ratings, determine the change in each player's rating. Return your result as a dictionary mapping players (String) to their delta (Integer).
+
+Compute the delta as
+
+![If a player is not present as a key in the `old_ratings` input but is present as a key in the `new_ratings` input, then assume this is a new player with a starting rating of `1200`. Likewise, if a player is present as a key in `old_ratings` but is not present in `new_ratings`, assume that player did not play in the tournament and their rating is unchanged.](images/clipboard-3605893688.png)
+
+For example:
+
+`old_ratings = {'Ryan Howard': 1755, 'Dwight Schrute': 1675}`
+
+`new_ratings = {'Michael Scott': 1250, 'Ryan Howard': 1750}`
+
+Should return:
+
+`{'Michael Scott': 50, 'Ryan Howard': -5, 'Dwight Schrute': 0}`
+
+```{python}
+demo_old_ratings = {'Ryan Howard': 1755, 'Dwight Schrute': 1675}
+demo_new_ratings = {'Michael Scott': 1250, 'Ryan Howard': 1750}
+```
+
+```{python}
+def compute_deltas(old_ratings, new_ratings):
+    ###
+    ### YOUR CODE HERE
+    ###
+    both = set(old_ratings) & set(new_ratings)
+    old = set(old_ratings) - set(new_ratings)
+    new = set(new_ratings) - set(old_ratings)
+    deltas = {}
+    for player in both:
+        deltas[player] = new_ratings[player] - old_ratings[player]
+    for player in new:
+        deltas[player] = new_ratings[player] - 1200
+    for player in old:
+        deltas[player] = 0
+        
+    return deltas    
+        
+
+# Demo
+compute_deltas(demo_old_ratings, demo_new_ratings)  
+```
